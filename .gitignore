@@ -4,3 +4,7 @@
 *.ptx
 *.cubin
 *.fatbin
+.cproject
+.project
+.ptp-sync
+.settings
