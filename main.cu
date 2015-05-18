@@ -1,5 +1,8 @@
 #include <cstdio>
 #include <iostream>
+#include <iomanip>
+
+#define _DEBUG
 
 // from CUDA book
 static void HandleError( cudaError_t err,
@@ -13,7 +16,20 @@ static void HandleError( cudaError_t err,
 #define HANDLE_ERROR( err ) (HandleError( err, __FILE__, __LINE__ ))
 //
 
-#define imin(a,b) (a<b?a:b)
+template <typename T>
+inline void printArray(const T *array, const int size) {
+	for (int i = 0; i < size; ++i) {
+		std::cout << array[i] << "\t";
+	}
+	std::cout << std::endl;
+}
+
+template <typename T>
+inline void arrayMap(T *array, const int size, void (*callback)(T&) ) {
+	for (int i = 0; i < size; ++i) {
+		callback(array[i]);
+	}
+}
 
 struct NodeData {
 	float v_h;
@@ -21,22 +37,82 @@ struct NodeData {
 	float G_max;
 	float v_d;
 	float v_r;
+	int   last_t;
+	bool  send;
 };
 
+inline void printG(NodeData &data) {
+	std::cout << std::fixed << std::setprecision(2) << data.G_0 << "\t";
+}
 
-__global__ void dot(const int N, const int *dev_V, NodeData *dev_Vdata, const int Elen, const int *dev_E,
-		int *dev_M, const int t_c, const int t_p) {
+
+__global__ void recv(const int N, const int *V, NodeData *Vdata, const int Elen, const int *E,
+		int *M, const int t_c, const int t_p) {
 
 	int tid = threadIdx.x + blockIdx.x * blockDim.x;
+	NodeData *data = &Vdata[tid];
 
-	dev_M[tid] = 2;
+	if (data->send || tid >= N) {
+		return;
+	}
 
-	// synchronize threads in this block
-	//__syncthreads();
+	int lastTime = 0, msgCount = 0;
+	int start = V[tid];
+	int end = V[tid + 1], msg;
 
+	// reading messages
+	for (int i = start; i < end; ++i) {
+		msg = M[i];
+
+		if (msg <= 0 || msg <= data->last_t) {
+			continue;
+		}
+
+		if (lastTime < msg) {
+			lastTime = msg;
+		}
+		++msgCount;
+	}
+
+	data->last_t = lastTime;
+
+	// processing messages
+	data->G_0 = data->G_max - (data->G_max - data->G_0) * exp(-0.01 * msgCount * t_p);
 
 }
 
+__global__ void send(const int N, const int *V, NodeData *Vdata, const int Elen, const int *E,
+		int *M, const int t_c, const int t_p) {
+
+	int tid = threadIdx.x + blockIdx.x * blockDim.x;
+	NodeData *data = &Vdata[tid];
+
+	if (data->send || tid >= N) {
+		return;
+	}
+
+	int start = V[tid];
+	int end = V[tid + 1];
+	int lastTime, start2, end2, v;
+
+	// sending messages
+	if (data->G_0 * (data->v_h + data->v_r) >= data->v_d) {
+		data->send = true;
+		lastTime = data->last_t + t_p + t_c;
+
+		for (int i = start; i < end; ++i) {
+			v = E[i];
+			start2 = V[v];
+			end2 = V[v + 1];
+			for (int j = start2; j < end2; ++j) {
+				if (E[j] == tid) {
+					M[j] = lastTime;
+					break;
+				}
+			}
+		}
+	}
+}
 
 
 int main(void) {
@@ -48,7 +124,7 @@ int main(void) {
 	int t_c = 3,		// communication time [s]
 		t_p = 30,		// processing time [s] e.g. short movie
 		t_s = 330;		// max. simulation time [s]
-	float v_h = 0,		// context potential [-1; 1]
+	float v_h = 0,		// reflection potential [-1; 1]
 	    G_0 = 1,		// initial conductivity [0, G_max)
 	    G_max = 100,	// max. conductivity (G_0, +inf)
 	    v_r = 1,		// registration potential (0, +inf)
@@ -58,6 +134,10 @@ int main(void) {
 		*E, *dev_E,
 		*M, *dev_M;
 	NodeData *Vdata, *dev_Vdata;
+
+#ifdef _DEBUG
+	std::cout << "Program started." << std::endl;
+#endif
 
 	//
 	std::cin >> N;
@@ -76,6 +156,8 @@ int main(void) {
 		Vdata[i].G_max = G_max;
 		Vdata[i].v_d = v_d;
 		Vdata[i].v_r = v_r;
+		Vdata[i].last_t = 0;
+		Vdata[i].send = false;
 	}
 
 	//
@@ -105,34 +187,39 @@ int main(void) {
 
 	// get source vector and create M(0)
 	std::cin >> Vsrc;
+	Vdata[Vsrc].send = true;
 
 	{
 		int start = V[Vsrc];
 		int end = V[Vsrc + 1];
+		int start2, end2, v;
 
 		for (int i = start; i < end; ++i) {
-			M[i] = 1;
+			v = E[i];
+			start2 = V[v];
+			end2 = V[v + 1];
+			for (int j = start2; j < end2; ++j) {
+				if (E[j] == Vsrc) {
+					M[j] = 1;
+					break;
+				}
+			}
 		}
 	}
 
 	//
 	std::cin >> t_c >> t_p >> t_s;
 
-	// debug
-	for (int i = 0; i < N; ++i) {
-		std::cout << V[i] << " ";
-	}
-	std::cout << std::endl;
+#ifdef _DEBUG
+	std::cout << "V:\t";
+	printArray(V, N);
 
-	for (int i = 0; i < Elen; ++i) {
-		std::cout << E[i] << " ";
-	}
-	std::cout << std::endl;
+	std::cout << "E:\t";
+	printArray(E, Elen);
 
-	for (int i = 0; i < Elen; ++i) {
-		std::cout << M[i] << " ";
-	}
-	std::cout << std::endl;
+	std::cout << "M_0:\t";
+	printArray(M, Elen);
+#endif
 
 	//
 	const int threadsPerBlock = 1024;
@@ -144,16 +231,36 @@ int main(void) {
 	HANDLE_ERROR(cudaMemcpy(dev_M, M, Elen * sizeof(int), cudaMemcpyHostToDevice));
 	HANDLE_ERROR(cudaMemcpy(dev_Vdata, Vdata, N * sizeof(NodeData), cudaMemcpyHostToDevice));
 
-	dot<<<blocksPerGrid, threadsPerBlock>>>(N, dev_V, dev_Vdata, Elen, dev_E, dev_M, t_c, t_p);
+	for (int t = 1; t <= t_s; t += t_c + t_p) {
+		recv<<<blocksPerGrid, threadsPerBlock>>>(N, dev_V, dev_Vdata, Elen, dev_E, dev_M, t_c, t_p);
+		send<<<blocksPerGrid, threadsPerBlock>>>(N, dev_V, dev_Vdata, Elen, dev_E, dev_M, t_c, t_p);
+
+#ifdef _DEBUG
+		HANDLE_ERROR(cudaMemcpy(M, dev_M, Elen * sizeof(int), cudaMemcpyDeviceToHost));
+		HANDLE_ERROR(cudaMemcpy(Vdata, dev_Vdata, N * sizeof(NodeData), cudaMemcpyDeviceToHost));
+
+		std::cout << "M_" << (t / (t_c + t_p) + 1) << ":\t";
+		printArray(M, Elen);
+
+		std::cout << "G_" << (t / (t_c + t_p) + 1) << ":\t";
+		arrayMap(Vdata, N, printG);
+		std::cout << std::endl;
+#endif
+	}
 
 	// copy the data from the GPU to the CPU
 	HANDLE_ERROR(cudaMemcpy(M, dev_M, Elen * sizeof(int), cudaMemcpyDeviceToHost));
 
-	// debug
-	for (int i = 0; i < Elen; ++i) {
-		std::cout << M[i] << " ";
-	}
-	std::cout << std::endl;
+//#ifdef _DEBUG
+//	std::cout << "M: ";
+//	printArray(M, Elen);
+//#endif
+
+	// generate output
+	// 1. how many recipients
+	// 2. max. distance from source (range)
+	// 3. a graph at the end of the simulation in dot format
+	//@todo: ^^
 
 	// free memory on the GPU side
 	cudaFree(dev_V);
