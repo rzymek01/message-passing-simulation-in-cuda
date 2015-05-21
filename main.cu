@@ -136,7 +136,7 @@ int main(void) {
 	NodeData *Vdata, *dev_Vdata;
 
 #ifdef _DEBUG
-	std::cout << "Program started." << std::endl;
+	std::cout << "/*\nProgram started." << std::endl;
 #endif
 
 	//
@@ -233,9 +233,7 @@ int main(void) {
 
 	for (int t = 1; t <= t_s; t += t_c + t_p) {
 		recv<<<blocksPerGrid, threadsPerBlock>>>(N, dev_V, dev_Vdata, Elen, dev_E, dev_M, t_c, t_p);
-//		cudaDeviceSynchronize();
 		send<<<blocksPerGrid, threadsPerBlock>>>(N, dev_V, dev_Vdata, Elen, dev_E, dev_M, t_c, t_p);
-//		cudaDeviceSynchronize();
 
 //#ifdef _DEBUG
 //		HANDLE_ERROR(cudaMemcpy(M, dev_M, Elen * sizeof(int), cudaMemcpyDeviceToHost));
@@ -256,13 +254,35 @@ int main(void) {
 #ifdef _DEBUG
 	std::cout << "M: ";
 	printArray(M, Elen);
+	std::cout << "*/\n";
 #endif
 
 	// generate output
 	// 1. how many recipients
 	// 2. max. distance from source (range)
-	// 3. a graph at the end of the simulation in dot format
-	//@todo: ^^
+	// -> 3. a graph at the end of the simulation in dot format
+
+	std::cout << "digraph G {\n";
+	std::cout << "\tnode [fontsize=12]\n";
+	std::cout << "\tedge [fontcolor=\"0.5 0.5 0.5\",fontsize=8]\n";
+	std::cout << "\t" << Vsrc << " [label=\"src\"]\n\n";
+
+	int start, end;
+	for (int i = 0; i < N; ++i) {
+		start = V[i];
+		end = V[i + 1];
+		for (int j = start; j < end; ++j) {
+			std::cout << "\t" << E[j] << " -> " << i;
+			if (M[j] > 0) {
+				std::cout << " [label=" << M[j] << "]\n";
+			} else {
+				std::cout << " [style=dotted]\n";
+			}
+		}
+	}
+
+
+	std::cout << "}" << std::endl;
 
 	// free memory on the GPU side
 	cudaFree(dev_V);
