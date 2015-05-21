@@ -56,7 +56,7 @@ __global__ void recv(const int N, const int *V, NodeData *Vdata, const int Elen,
 		return;
 	}
 
-	int lastTime = 0, msgCount = 0;
+	int lastTime = data->last_t, msgCount = 0;
 	int start = V[tid];
 	int end = V[tid + 1], msg;
 
@@ -233,28 +233,30 @@ int main(void) {
 
 	for (int t = 1; t <= t_s; t += t_c + t_p) {
 		recv<<<blocksPerGrid, threadsPerBlock>>>(N, dev_V, dev_Vdata, Elen, dev_E, dev_M, t_c, t_p);
+//		cudaDeviceSynchronize();
 		send<<<blocksPerGrid, threadsPerBlock>>>(N, dev_V, dev_Vdata, Elen, dev_E, dev_M, t_c, t_p);
+//		cudaDeviceSynchronize();
 
-#ifdef _DEBUG
-		HANDLE_ERROR(cudaMemcpy(M, dev_M, Elen * sizeof(int), cudaMemcpyDeviceToHost));
-		HANDLE_ERROR(cudaMemcpy(Vdata, dev_Vdata, N * sizeof(NodeData), cudaMemcpyDeviceToHost));
-
-		std::cout << "M_" << (t / (t_c + t_p) + 1) << ":\t";
-		printArray(M, Elen);
-
-		std::cout << "G_" << (t / (t_c + t_p) + 1) << ":\t";
-		arrayMap(Vdata, N, printG);
-		std::cout << std::endl;
-#endif
+//#ifdef _DEBUG
+//		HANDLE_ERROR(cudaMemcpy(M, dev_M, Elen * sizeof(int), cudaMemcpyDeviceToHost));
+//		HANDLE_ERROR(cudaMemcpy(Vdata, dev_Vdata, N * sizeof(NodeData), cudaMemcpyDeviceToHost));
+//
+//		std::cout << "M_" << (t / (t_c + t_p) + 1) << ":\t";
+//		printArray(M, Elen);
+//
+//		std::cout << "G_" << (t / (t_c + t_p) + 1) << ":\t";
+//		arrayMap(Vdata, N, printG);
+//		std::cout << std::endl;
+//#endif
 	}
 
 	// copy the data from the GPU to the CPU
 	HANDLE_ERROR(cudaMemcpy(M, dev_M, Elen * sizeof(int), cudaMemcpyDeviceToHost));
 
-//#ifdef _DEBUG
-//	std::cout << "M: ";
-//	printArray(M, Elen);
-//#endif
+#ifdef _DEBUG
+	std::cout << "M: ";
+	printArray(M, Elen);
+#endif
 
 	// generate output
 	// 1. how many recipients
