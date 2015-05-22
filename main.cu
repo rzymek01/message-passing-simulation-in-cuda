@@ -1,3 +1,14 @@
+/**
+ * usage: ./network < ../3.in | dot -Tpng -o graph.png
+ *
+ * Input file format:
+ * 		| %d			// #V
+ * x #V	| %f %f %f %f 	// v_h_i, G_0_i, G_max_i, v_d_i
+ * 		| %d			// #E
+ * x #V	| %d [%d, ...]	// #edges of v_i [v_j, ...]
+ * 		| %d			// source v_i
+ * 		| %d %d %d 		// t_c, t_p, t_s
+ */
 #include <cstdio>
 #include <iostream>
 #include <iomanip>
