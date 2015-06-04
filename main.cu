@@ -1,5 +1,7 @@
 /**
- * usage: ./network < ../3.in | dot -Tpng -o graph.png
+ * Usage:
+ * ./msg-spr-sim [<no_of_threads_per_block>] [<device_id>] <”<input_file>” >”<output_file>” 2>”<file_with_exec_time>”
+ * ./msg-spr-sim [...] | dot -Tpng -o graph.png
  *
  * Input file format:
  * 		| %d			// #V
@@ -8,12 +10,15 @@
  * x #V	| %d [%d, ...]	// #edges of v_i [v_j, ...]
  * 		| %d			// source v_i
  * 		| %d %d %d 		// t_c, t_p, t_s
+ *
+ * Output file format: dot
+ * Stderr output: single double number - execution time
  */
 #include <cstdio>
 #include <iostream>
 #include <iomanip>
 
-#define _DEBUG
+//#define _DEBUG
 
 // from CUDA book
 static void HandleError( cudaError_t err,
@@ -126,9 +131,60 @@ __global__ void send(const int N, const int *V, NodeData *Vdata, const int Elen,
 }
 
 
-int main(void) {
+int main(int argc, char* argv[]) {
+
+	// obtain available devices
+	int deviceCount;
+	HANDLE_ERROR(cudaGetDeviceCount(&deviceCount));
+
+	if (deviceCount <= 0) {
+		std::cerr << "No CUDA devices has been found!" << std::endl;
+		exit(1);
+	}
+
+	cudaDeviceProp *prop = new cudaDeviceProp[deviceCount];
+
+	for (int i = 0; i < deviceCount; ++i) {
+		HANDLE_ERROR(cudaGetDeviceProperties(&(prop[i]), i));
+#ifdef _DEBUG
+		std::cout << "/*name: " << prop[i].name << "; max_threads_per_block: " << prop[i].maxThreadsPerBlock << "*/\n";
+#endif
+	}
 
 	// read parameters
+	int threadsPerBlock = -1,
+		deviceId = -1;
+
+	if (argc >= 2) {
+		threadsPerBlock = atoi(argv[1]);
+	}
+	if (argc >= 3) {
+		deviceId = atoi(argv[2]);
+	}
+
+	if (deviceId == -1) {
+		deviceId = 0;
+	}
+	if (threadsPerBlock == -1) {
+		threadsPerBlock = prop[deviceId].maxThreadsPerBlock;
+	}
+
+	if (threadsPerBlock < 16 || threadsPerBlock > prop[deviceId].maxThreadsPerBlock) {
+		std::cerr << "Number of threads per block is too small or too big!" << std::endl;
+		exit(2);
+	}
+	if (deviceId < 0 || deviceId >= deviceCount) {
+		std::cerr << "Device id out of range!" << std::endl;
+		exit(3);
+	}
+
+	// select device
+	cudaSetDevice(deviceId);
+
+	std::cout << "/*selected device: " << prop[deviceId].name << "; threads_per_block: "
+			<< threadsPerBlock << "*/\n";
+
+	// read input data
 	int N,				// no. of vertices (nodes)
 		Elen,			// no. of edges
 		Vsrc;			// source vertex
@@ -233,8 +289,13 @@ int main(void) {
 #endif
 
 	//
-	const int threadsPerBlock = 1024;
 	int blocksPerGrid = (N + threadsPerBlock-1) / threadsPerBlock;	// floor
+
+	// capture the start time
+	cudaEvent_t	startEvent, stopEvent;
+	HANDLE_ERROR(cudaEventCreate(&startEvent));
+	HANDLE_ERROR(cudaEventCreate(&stopEvent));
+	HANDLE_ERROR(cudaEventRecord(startEvent, 0));
 
 	// copy the data to the GPU
 	HANDLE_ERROR(cudaMemcpy(dev_V, V, (N+1) * sizeof(int), cudaMemcpyHostToDevice));
@@ -262,11 +323,25 @@ int main(void) {
 	// copy the data from the GPU to the CPU
 	HANDLE_ERROR(cudaMemcpy(M, dev_M, Elen * sizeof(int), cudaMemcpyDeviceToHost));
 
+	// capture the end time
+	HANDLE_ERROR(cudaEventRecord(stopEvent, 0));
+	cudaEventSynchronize(stopEvent);
+
+	float compTime;
+	HANDLE_ERROR(cudaEventElapsedTime(&compTime, startEvent, stopEvent));
+
+	HANDLE_ERROR(cudaEventDestroy(startEvent));
+	HANDLE_ERROR(cudaEventDestroy(stopEvent));
+
 #ifdef _DEBUG
 	std::cout << "M: ";
 	printArray(M, Elen);
 	std::cout << "*/\n";
 #endif
+
+	// write computing time (to cerr for simplicity)
+
+	std::cerr << compTime << std::endl;
 
 	// generate output
 	// 1. how many recipients

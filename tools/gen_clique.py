@@ -1,8 +1,6 @@
 #!/usr/bin/python
-import sys
-
 """
-Test generator for Message Passing Simulation.
+Test generator for Message Spreading Simulator.
 
 Scenarios:
 1) n-clique:
@@ -27,9 +25,10 @@ graph representing a human network
  		  | %d %d %d 		  // t_c, t_p, t_s
 """
 
+import sys
 
 if len(sys.argv) < 3:
-    sys.exit('Usage: %s <scenario> <#V>' % sys.argv[0])
+  sys.exit('Usage: %s <scenario> <#V>' % sys.argv[0])
 
 scenario = int(sys.argv[1])
 N = int(sys.argv[2])
@@ -45,15 +44,15 @@ if 1 == scenario:
     else:
       print "-1 1 10 2"
 else:
-    sys.exit('Undefined scenario #%d' % scenario)
+  sys.exit('Undefined scenario #%d' % scenario)
 
 print str(E)
 
 for i in vertices:
   edges = list(vertices)
   edges.remove(i)
-  print str(N-1) + ' ' + ' '.join(map(str, edges))
+  print str(N - 1) + ' ' + ' '.join(map(str, edges))
 
 print "0"
-print "3 30 330"
+print "3 30 3630"
 
