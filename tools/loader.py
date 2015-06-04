@@ -4,8 +4,8 @@ import os
 
 print os.getcwd()
 
-OUTPUT_PATH = "/macierz/home/137396rm/cuda/msg-pass-sim/output/"
-INPUT_PATH = "/macierz/home/137396rm/cuda/msg-pass-sim/test/"
+OUTPUT_PATH = "/macierz/home/137396rm/cuda/msg-pass-sim-tests/"
+INPUT_PATH = "/macierz/home/137396rm/cuda/msg-pass-sim-tests/"
 PROGRAM_PATH = "/macierz/home/137396rm/cuda/msg-pass-sim/Release/network"
 
 

@@ -1,7 +1,7 @@
 import sys
 import glob
 
-OUTPUT_PATH = "/macierz/home/137396rm/cuda/msg-pass-sim/output/"
+OUTPUT_PATH = "/macierz/home/137396rm/cuda/msg-pass-sim-tests/"
 
 
 def generate_csv(path, test_id, v):
