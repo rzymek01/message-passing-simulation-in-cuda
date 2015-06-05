@@ -169,13 +169,13 @@ int main(int argc, char* argv[]) {
 		threadsPerBlock = prop[deviceId].maxThreadsPerBlock;
 	}
 
-	if (threadsPerBlock < 16 || threadsPerBlock > prop[deviceId].maxThreadsPerBlock) {
-		std::cerr << "Number of threads per block is too small or too big!" << std::endl;
-		exit(2);
-	}
 	if (deviceId < 0 || deviceId >= deviceCount) {
 		std::cerr << "Device id out of range!" << std::endl;
 		exit(3);
+	}
+	if (threadsPerBlock < 16 || threadsPerBlock > prop[deviceId].maxThreadsPerBlock) {
+		std::cerr << "Number of threads per block is too small or too big!" << std::endl;
+		exit(2);
 	}
 
 	// select device
