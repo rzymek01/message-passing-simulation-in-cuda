@@ -32,7 +32,7 @@ print str(N)
 
 if 1 == scenario:
   for i in vertices:
-    print "1 1 10 2"
+    print "1 1 10 3"
 else:
   sys.exit('Undefined scenario #%d' % scenario)
 
