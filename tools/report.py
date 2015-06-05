@@ -4,8 +4,8 @@ import glob
 OUTPUT_PATH = "/macierz/home/137396rm/cuda/msg-pass-sim-tests/"
 
 
-def generate_csv(path, test_id, v):
-    time_list, thread_numbers = get_time_from_files(path, test_id, v)
+def generate_csv(path, args):
+    time_list, thread_numbers = get_time_from_files(path, args)
     # print time_list
     # place for device and
     # print thread_numbers
@@ -27,23 +27,40 @@ def generate_csv(path, test_id, v):
     print content
 
 
-def get_time_from_files(path, test_id, v):
-    files = glob.glob(path + "test_" + test_id + "_" + v + "*.time")
+def get_time_from_files(path, args):
+    params = {
+        "test_id": args['test_id'] if 'test_id' in args else '*',
+        "v": args['v'] if 'v' in args else '*',
+        "d": args['d'] if 'd' in args else '*',
+        "t": args['t'] if 't' in args else '*',
+        "test": args['test'] if 'test' in args else '*',
+    }
+    files = glob.glob(path + "test_" + params['test_id'] + "_" + params['v'] + "_" + params['d'] + "_" + params['t'] + "_" + params['test'] + ".time")
     # print files
 
     thread_numbers = set()
     time_list = list()
-    time_dict = dict()
+
+    column_id = 1
+    columns = 0
 
     # i = 0
     for filename in files:
         test_param_list, test_ext = filename.split('.')
         test_param_list = test_param_list.split('_')
-        del test_param_list[0:3]
-        # test_param_list = ['2', '1024', '1000']
-        test_param_list[0] = int(test_param_list[0])
-        test_param_list[1] = int(test_param_list[1])
-        test_param_list[2] = int(test_param_list[2])
+        file_params = {
+            "test_id": test_param_list[1],
+            "v": test_param_list[2],
+            "d": test_param_list[3],
+            "t": test_param_list[4],
+            "test": test_param_list[5],
+        }
+        test_param_list = []
+        for key in file_params:
+            if '*' == params[key]:
+              test_param_list.append(file_params[key])
+
+        columns = len(test_param_list)
 
         # append to list time from file
         with open(filename, 'r') as f:
@@ -54,26 +71,34 @@ def get_time_from_files(path, test_id, v):
         test_param_list.append(float(time))
         # print test_param_list
         # add thread number to set
-        thread_numbers.add(test_param_list[1])
+        thread_numbers.add(test_param_list[column_id])
 
         time_list.append(test_param_list)
-        # convert lists to dict
-        # time_dict[i] = {test_param_list[2]: {test_param_list[4]: {test_param_list[3]: test_param_list[5]}}}
-        # i += 1
-    time_list.sort(key=lambda x: (x[0], x[2], x[1]))
+
+    def my_sort(x):
+        t = ()
+        for i in range(0, columns):
+            if i != column_id:
+              t = t + (x[i],)
+        t = t + (x[column_id],)
+        return t
+
+    time_list.sort(key=my_sort)
     # print time_list
 
     return time_list, len(thread_numbers)
 
 
 if __name__ == "__main__":
-    argc = len(sys.argv)
-    if argc == 3:
-        test_id = sys.argv[1]
-        v = str(sys.argv[2])
-    else:
-        print("usage: " + sys.argv[0] + " <test_id> <version>")
-        exit()
+    # argc = len(sys.argv)
+    # if argc == 3:
+    #     test_id = sys.argv[1]
+    #     v = str(sys.argv[2])
+    # else:
+    #     print("usage: " + sys.argv[0] + " <test_id> <version>")
+    #     exit()
+
+    params = {"test_id": "B", "t": "1024", "d": "0"}
 
     path = OUTPUT_PATH
-    generate_csv(path, test_id, v)
+    generate_csv(path, params)

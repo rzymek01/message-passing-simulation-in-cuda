@@ -54,5 +54,5 @@ for i in vertices:
   print str(N - 1) + ' ' + ' '.join(map(str, edges))
 
 print "0"
-print "3 30 3630"
+print "3 30 99000"
 

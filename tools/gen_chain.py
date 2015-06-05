@@ -47,5 +47,5 @@ for i in vertices:
     print '1 ' + str(i - 1)
 
 print "0"
-print "3 30 3630"
+print "3 30 99000"
 
