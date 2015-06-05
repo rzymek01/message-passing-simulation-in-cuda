@@ -25,7 +25,7 @@ if len(sys.argv) < 3:
 
 scenario = int(sys.argv[1])
 N = int(sys.argv[2])
-E = (N - 1)
+E = 2 * (N - 1)
 vertices = range(0, N, 1)
 
 print str(N)

@@ -18,7 +18,7 @@
 #include <iostream>
 #include <iomanip>
 
-//#define _DEBUG
+#define _DEBUG
 
 // from CUDA book
 static void HandleError( cudaError_t err,
