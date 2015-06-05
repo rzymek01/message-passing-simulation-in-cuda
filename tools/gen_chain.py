@@ -40,11 +40,11 @@ print str(E)
 
 for i in vertices:
   if i == 0:
-    print str(i + 1)
+    print '1 ' + str(i + 1)
   elif 0 < i < N - 1:
-    print str(i - 1) + " " + str(i + 1)
+    print '2 ' + str(i - 1) + ' ' + str(i + 1)
   else:
-    print str(i - 1)
+    print '1 ' + str(i - 1)
 
 print "0"
 print "3 30 3630"
