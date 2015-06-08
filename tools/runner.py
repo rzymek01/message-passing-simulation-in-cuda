@@ -91,9 +91,9 @@ if __name__ == "__main__":
             "cmd": {
                 "t": (1024,),
                 "d": (faster_device,),
-                "v": (1, most_optimized_version),
+                "v": (most_optimized_version,),
                 # "test": (10, 100, 1000, '10b', '100b', '1000b', '10000b', '100000b', '1000000b')
-                "test": (100, 1000, '100b', '1000b', '10000b')
+                "test": (1000, '1000b', '10000b', '100000b', '1000000b')
             }
         },
         # "C": {

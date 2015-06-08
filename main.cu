@@ -71,19 +71,13 @@ __global__ void recv(const int N, const int *V, NodeData *Vdata, const int Elen,
 	if (lastId > N) {
 		lastId = N;
 	}
-	printf("[recv start] start: %d; end: %d; iter: %d\n", tid, lastId, iter);
+//	printf("[recv start] start: %d; end: %d; iter: %d\n", tid, lastId, iter);
 
 	for ( ; tid < lastId; ++tid) {
-//		int tid = threadIdx.x + a * threadsPerBlock;
-//		int tid = threadIdx.x + blockIdx.x * blockDim.x;
-
 		NodeData *data = &Vdata[tid];
 		if (data->send) {
-			return;
+			continue;
 		}
-
-//		if (tid >= 781)
-//			printf("[recv] vId: %d; tId: %d\n", tid, threadIdx.x);
 
 		int lastTime = data->last_t, msgCount = 0;
 		int start = V[tid];
@@ -108,6 +102,42 @@ __global__ void recv(const int N, const int *V, NodeData *Vdata, const int Elen,
 		// processing messages
 		data->G_0 = data->G_max - (data->G_max - data->G_0) * exp(-0.01 * msgCount * t_p);
 	}
+
+	//
+	__syncthreads();
+	//
+
+	tid = threadIdx.x * iter;
+	//	printf("[send start] start: %d; end: %d; iter: %d\n", tid, lastId, iter);
+
+	for ( ; tid < lastId; ++tid) {
+		NodeData *data = &Vdata[tid];
+		if (data->send) {
+			continue;
+		}
+
+		int start = V[tid];
+		int end = V[tid + 1];
+		int lastTime, start2, end2, v;
+
+		// sending messages
+		if (data->G_0 * (data->v_h + data->v_r) >= data->v_d) {
+			data->send = true;
+			lastTime = data->last_t + t_p + t_c;
+
+			for (int i = start; i < end; ++i) {
+				v = E[i];
+				start2 = V[v];
+				end2 = V[v + 1];
+				for (int j = start2; j < end2; ++j) {
+					if (E[j] == tid) {
+						M[j] = lastTime;
+						break;
+					}
+				}
+			}
+		}
+	}
 }
 
 __global__ void send(const int N, const int *V, NodeData *Vdata, const int Elen, const int *E,
@@ -119,20 +149,13 @@ __global__ void send(const int N, const int *V, NodeData *Vdata, const int Elen,
 	if (lastId > N) {
 		lastId = N;
 	}
-	printf("[send start] start: %d; end: %d; iter: %d\n", tid, lastId, iter);
+//	printf("[send start] start: %d; end: %d; iter: %d\n", tid, lastId, iter);
 
 	for ( ; tid < lastId; ++tid) {
-//		int tid = threadIdx.x + a * threadsPerBlock;
-//		int tid = threadIdx.x + blockIdx.x * blockDim.x;
-
 		NodeData *data = &Vdata[tid];
 		if (data->send) {
-			return;
+			continue;
 		}
-
-//		if (tid >= 781)
-//			printf("[send] vId: %d; tId: %d\n", tid, threadIdx.x);
-
 
 		int start = V[tid];
 		int end = V[tid + 1];
@@ -201,7 +224,7 @@ int main(int argc, char* argv[]) {
 		std::cerr << "Device id out of range!" << std::endl;
 		exit(3);
 	}
-	if (threadsPerBlock < 16 || threadsPerBlock > prop[deviceId].maxThreadsPerBlock) {
+	if (threadsPerBlock < 2 || threadsPerBlock > prop[deviceId].maxThreadsPerBlock) {
 		std::cerr << "Number of threads per block is too small or too big!" << std::endl;
 		exit(2);
 	}
@@ -333,11 +356,7 @@ int main(int argc, char* argv[]) {
 
 	for (int t = 1; t <= t_s; t += t_c + t_p) {
 		recv<<<blocksPerGrid, threadsPerBlock>>>(N, dev_V, dev_Vdata, Elen, dev_E, dev_M, t_c, t_p, threadsPerBlock);
-		HANDLE_ERROR(cudaPeekAtLastError());
-		HANDLE_ERROR(cudaDeviceSynchronize());
-		send<<<blocksPerGrid, threadsPerBlock>>>(N, dev_V, dev_Vdata, Elen, dev_E, dev_M, t_c, t_p, threadsPerBlock);
-		HANDLE_ERROR(cudaPeekAtLastError());
-		HANDLE_ERROR(cudaDeviceSynchronize());
+//		send<<<blocksPerGrid, threadsPerBlock>>>(N, dev_V, dev_Vdata, Elen, dev_E, dev_M, t_c, t_p, threadsPerBlock);
 
 ////#ifdef _DEBUG
 //	    if (t >= 33759) {

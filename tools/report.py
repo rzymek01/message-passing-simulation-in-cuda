@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import sys
 import glob
 
@@ -10,22 +11,8 @@ def generate_csv(path, args):
     # place for device and
     # print thread_numbers
 
-    content = ""
-
-    time_list_len = len(time_list)
-    i = 0
-    while i < time_list_len:
-        content += str(time_list[i][0]) + "," + str(time_list[i][2]) + ","
-        for j in range(0, thread_numbers):
-            content += str(time_list[i][3])
-            if j != thread_numbers - 1:
-                content += ","
-            i += 1
-
-        content += "\n"
-
-    print content
-
+    for row in time_list:
+        print(','.join([str(x) for x in row]))
 
 def get_time_from_files(path, args):
     params = {
