@@ -6,7 +6,7 @@ print os.getcwd()
 
 OUTPUT_PATH = "/macierz/home/137396rm/cuda/msg-pass-sim-tests/"
 INPUT_PATH = "/macierz/home/137396rm/cuda/msg-pass-sim-tests/"
-PROGRAM_PATH = "/macierz/home/137396rm/cuda/msg-pass-sim/Release/network"
+PROGRAM_PATH = "/macierz/home/137396rm/cuda/msg-pass-sim/Release/msg"
 
 
 def execute(specs_id, v, t, d, test):
@@ -73,69 +73,70 @@ def find_diff(specs, v1, v2):
 if __name__ == "__main__":
     most_optimized_version = 4
     faster_device = 0
+    threads_per_block = 128
 
     specs = {
         # "A": {
         #     "id": "A3",
         #     "name": "Test A. Execution time vs number of threads per block",
         #     "cmd": {
-        #         "t": (256, 512, 1024),
+        #         "t": (64, 128, 256, 512, 1024),
         #         "d": (faster_device,),
         #         "v": (most_optimized_version,),
-        #         "test": (1000, '100000b')
+        #         "test": (1000, '1000000b')
         #     }
         # },
-        "B": {
-            "id": "B3",
-            "name": "Test B. Execution time vs optimizations",
-            "cmd": {
-                "t": (1024,),
-                "d": (faster_device,),
-                "v": (1, most_optimized_version),
-                "test": (100, 1000, '100b', '1000b', '10000b', '100000b', '1000000b')
-            }
-        },
+        # "B": {
+        #     "id": "B3",
+        #     "name": "Test B. Execution time vs optimizations",
+        #     "cmd": {
+        #         "t": (threads_per_block,),
+        #         "d": (faster_device,),
+        #         "v": (1, 2, 3, most_optimized_version),
+        #         "test": (100, 1000, '100b', '1000b', '10000b', '100000b', '1000000b')
+        #     }
+        # },
         # "C": {
         #     "id": "C3",
         #     "name": "Test C. Execution time vs size of input data (number of vertices and edges)",
         #     "cmd": {
-        #         "t": (1024,),
+        #         "t": (threads_per_block,),
         #         "d": (faster_device,),
         #         "v": (most_optimized_version,),
         #         "test": (10, 100, 1000, '10b', '100b', '1000b', '10000b', '100000b', '1000000b')
         #     }
         # },
         # "D": {
-        #     "id": "D",
+        #     "id": "D3",
         #     "name": "Test D. Execution time vs device",
         #     "cmd": {
-        #         "t": (1024,),
+        #         "t": (threads_per_block,),
         #         "d": (0, 1),
         #         "v": (most_optimized_version,),
-        #         "test": (1000, '100000b')
+        #         "test": (100, 1000, '100000b', '1000000b')
         #     }
         # },
         # "E": {
-        #     "id": "E",
+        #     "id": "E3",
         #     "name": "Test E. Execution time vs size of input data, number of threads per block and optimizations",
         #     "cmd": {
-        #         "t": (256, 512, 1024),
+        #         "t": (64, 128, 256, 512, 1024),
         #         "d": (faster_device,),
         #         "v": (1, most_optimized_version),
-        #         "test": ('10b', '100b', '1000b', '10000b', '100000b', '1000000b')
+        #         "test": ('100', '1000', '100b', '1000b', '10000b', '100000b', '1000000b')
         #     }
         # },
-        # "F": {
-        #     "id": "F",
-        #     "name": "Test F. Execution time vs size of input data, number of threads per block and device",
-        #     "cmd": {
-        #         "t": (256, 512, 1024),
-        #         "d": (0, 1),
-        #         "v": (most_optimized_version,),
-        #         "test": ('10b', '100b', '1000b', '10000b', '100000b', '1000000b')
-        #     }
-        # },
+        "F": {
+            "id": "F3",
+            "name": "Test F. Execution time vs size of input data, number of threads per block and device",
+            "cmd": {
+                "t": (64, 128, 256, 512, 1024),
+                "d": (0, 1),
+                "v": (most_optimized_version,),
+                "test": ('100', '1000', '100b', '1000b', '10000b', '100000b', '1000000b')
+            }
+        },
     }
 
     run(specs)
-    find_diff(specs, 1, most_optimized_version)
+    # find_diff(specs, 1, most_optimized_version)

@@ -5,8 +5,7 @@ import glob
 OUTPUT_PATH = "/macierz/home/137396rm/cuda/msg-pass-sim-tests/"
 
 
-def generate_csv(path, args):
-    column_id = 0
+def generate_csv(path, args, column_id=0):
     time_list, number_of_columns = get_time_from_files(path, args, column_id)
     # print time_list
     # place for device and
@@ -126,7 +125,13 @@ if __name__ == "__main__":
     #     print("usage: " + sys.argv[0] + " <test_id> <version>")
     #     exit()
 
-    params = {"test_id": "B3", "t": "1024", "d": "0"}
+    column_id = 1
+    # params = {"test_id": "A3", "v": "4", "d": "0"}
+    # params = {"test_id": "B3", "t": "128", "d": "0"}
+    # params = {"test_id": "C3", "t": "128", "d": "0", "v": "4"}
+    # params = {"test_id": "D3", "t": "128", "v": "4"}
+    # params = {"test_id": "E3", "d": "0"}
+    params = {"test_id": "F3", "v": "4"}
 
     path = OUTPUT_PATH
-    generate_csv(path, params)
+    generate_csv(path, params, column_id)
