@@ -25,7 +25,7 @@ static void HandleError( cudaError_t err,
                          const char *file,
                          int line ) {
     if (err != cudaSuccess) {
-        std::cerr << cudaGetErrorString(err) << "in " << file << " at " << line << std::endl;
+        printf( "%s in %s at line %d\n", cudaGetErrorString( err ), file, line );
         exit( EXIT_FAILURE );
     }
 }
@@ -63,118 +63,67 @@ inline void printG(NodeData &data) {
 
 
 __global__ void recv(const int N, const int *V, NodeData *Vdata, const int Elen, const int *E,
-		int *M, const int t_c, const int t_p, const int threadsPerBlock) {
+		int *M, const int t_c, const int t_p) {
 
-	const int iter = (N + threadsPerBlock-1) / threadsPerBlock;
-	int lastId = (threadIdx.x + 1) * iter,
-		tid = threadIdx.x * iter;
-	if (lastId > N) {
-		lastId = N;
+	int tid = threadIdx.x + blockIdx.x * blockDim.x;
+	NodeData *data = &Vdata[tid];
+
+	if (data->send || tid >= N) {
+		return;
 	}
-//	printf("[recv start] start: %d; end: %d; iter: %d\n", tid, lastId, iter);
 
-	for ( ; tid < lastId; ++tid) {
-		NodeData *data = &Vdata[tid];
-		if (data->send) {
+	int lastTime = data->last_t, msgCount = 0;
+	int start = V[tid];
+	int end = V[tid + 1], msg;
+
+	// reading messages
+	for (int i = start; i < end; ++i) {
+		msg = M[i];
+
+		if (msg <= 0 || msg <= data->last_t) {
 			continue;
 		}
 
-		int lastTime = data->last_t, msgCount = 0;
-		int start = V[tid];
-		int end = V[tid + 1], msg;
-
-		// reading messages
-		for (int i = start; i < end; ++i) {
-			msg = M[i];
-
-			if (msg <= 0 || msg <= data->last_t) {
-				continue;
-			}
-
-			if (lastTime < msg) {
-				lastTime = msg;
-			}
-			++msgCount;
+		if (lastTime < msg) {
+			lastTime = msg;
 		}
-
-		data->last_t = lastTime;
-
-		// processing messages
-		data->G_0 = data->G_max - (data->G_max - data->G_0) * exp(-0.01 * msgCount * t_p);
+		++msgCount;
 	}
 
-	//
-	__syncthreads();
-	//
+	data->last_t = lastTime;
 
-	tid = threadIdx.x * iter;
-	//	printf("[send start] start: %d; end: %d; iter: %d\n", tid, lastId, iter);
+	// processing messages
+	data->G_0 = data->G_max - (data->G_max - data->G_0) * exp(-0.01 * msgCount * t_p);
 
-	for ( ; tid < lastId; ++tid) {
-		NodeData *data = &Vdata[tid];
-		if (data->send) {
-			continue;
-		}
-
-		int start = V[tid];
-		int end = V[tid + 1];
-		int lastTime, start2, end2, v;
-
-		// sending messages
-		if (data->G_0 * (data->v_h + data->v_r) >= data->v_d) {
-			data->send = true;
-			lastTime = data->last_t + t_p + t_c;
-
-			for (int i = start; i < end; ++i) {
-				v = E[i];
-				start2 = V[v];
-				end2 = V[v + 1];
-				for (int j = start2; j < end2; ++j) {
-					if (E[j] == tid) {
-						M[j] = lastTime;
-						break;
-					}
-				}
-			}
-		}
-	}
 }
 
 __global__ void send(const int N, const int *V, NodeData *Vdata, const int Elen, const int *E,
-		int *M, const int t_c, const int t_p, const int threadsPerBlock) {
+		int *M, const int t_c, const int t_p) {
 
-	const int iter = (N + threadsPerBlock-1) / threadsPerBlock;
-	int lastId = (threadIdx.x + 1) * iter,
-		tid = threadIdx.x * iter;
-	if (lastId > N) {
-		lastId = N;
+	int tid = threadIdx.x + blockIdx.x * blockDim.x;
+	NodeData *data = &Vdata[tid];
+
+	if (data->send || tid >= N) {
+		return;
 	}
-//	printf("[send start] start: %d; end: %d; iter: %d\n", tid, lastId, iter);
 
-	for ( ; tid < lastId; ++tid) {
-		NodeData *data = &Vdata[tid];
-		if (data->send) {
-			continue;
-		}
+	int start = V[tid];
+	int end = V[tid + 1];
+	int lastTime, start2, end2, v;
 
-		int start = V[tid];
-		int end = V[tid + 1];
-		int lastTime, start2, end2, v;
+	// sending messages
+	if (data->G_0 * (data->v_h + data->v_r) >= data->v_d) {
+		data->send = true;
+		lastTime = data->last_t + t_p + t_c;
 
-		// sending messages
-		if (data->G_0 * (data->v_h + data->v_r) >= data->v_d) {
-			data->send = true;
-			lastTime = data->last_t + t_p + t_c;
-
-			for (int i = start; i < end; ++i) {
-				v = E[i];
-				start2 = V[v];
-				end2 = V[v + 1];
-				for (int j = start2; j < end2; ++j) {
-					if (E[j] == tid) {
-						M[j] = lastTime;
-						break;
-					}
+		for (int i = start; i < end; ++i) {
+			v = E[i];
+			start2 = V[v];
+			end2 = V[v + 1];
+			for (int j = start2; j < end2; ++j) {
+				if (E[j] == tid) {
+					M[j] = lastTime;
+					break;
 				}
 			}
 		}
@@ -224,7 +173,7 @@ int main(int argc, char* argv[]) {
 		std::cerr << "Device id out of range!" << std::endl;
 		exit(3);
 	}
-	if (threadsPerBlock < 2 || threadsPerBlock > prop[deviceId].maxThreadsPerBlock) {
+	if (threadsPerBlock < 16 || threadsPerBlock > prop[deviceId].maxThreadsPerBlock) {
 		std::cerr << "Number of threads per block is too small or too big!" << std::endl;
 		exit(2);
 	}
@@ -340,7 +289,7 @@ int main(int argc, char* argv[]) {
 #endif
 
 	//
-	const int blocksPerGrid = 1; //(N + threadsPerBlock-1) / threadsPerBlock;	// ceil
+	int blocksPerGrid = (N + threadsPerBlock-1) / threadsPerBlock;	// floor
 
 	// capture the start time
 	cudaEvent_t	startEvent, stopEvent;
@@ -355,24 +304,20 @@ int main(int argc, char* argv[]) {
 	HANDLE_ERROR(cudaMemcpy(dev_Vdata, Vdata, N * sizeof(NodeData), cudaMemcpyHostToDevice));
 
 	for (int t = 1; t <= t_s; t += t_c + t_p) {
-		recv<<<blocksPerGrid, threadsPerBlock>>>(N, dev_V, dev_Vdata, Elen, dev_E, dev_M, t_c, t_p, threadsPerBlock);
-//		send<<<blocksPerGrid, threadsPerBlock>>>(N, dev_V, dev_Vdata, Elen, dev_E, dev_M, t_c, t_p, threadsPerBlock);
+		recv<<<blocksPerGrid, threadsPerBlock>>>(N, dev_V, dev_Vdata, Elen, dev_E, dev_M, t_c, t_p);
+		send<<<blocksPerGrid, threadsPerBlock>>>(N, dev_V, dev_Vdata, Elen, dev_E, dev_M, t_c, t_p);
 
-////#ifdef _DEBUG
-//	    if (t >= 33759) {
+//#ifdef _DEBUG
 //		HANDLE_ERROR(cudaMemcpy(M, dev_M, Elen * sizeof(int), cudaMemcpyDeviceToHost));
 //		HANDLE_ERROR(cudaMemcpy(Vdata, dev_Vdata, N * sizeof(NodeData), cudaMemcpyDeviceToHost));
 //
 //		std::cout << "M_" << (t / (t_c + t_p) + 1) << ":\t";
-////		printArray(M, Elen);
-//		printArray(M, 2060);
+//		printArray(M, Elen);
 //
 //		std::cout << "G_" << (t / (t_c + t_p) + 1) << ":\t";
-////		arrayMap(Vdata, N, printG);
-//		arrayMap(Vdata, 1030, printG);
+//		arrayMap(Vdata, N, printG);
 //		std::cout << std::endl;
-//	    }
-////#endif
+//#endif
 	}
 
 	// copy the data from the GPU to the CPU

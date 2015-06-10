@@ -71,7 +71,7 @@ def find_diff(specs, v1, v2):
 
 # main
 if __name__ == "__main__":
-    most_optimized_version = 2
+    most_optimized_version = 4
     faster_device = 0
 
     specs = {
@@ -86,12 +86,12 @@ if __name__ == "__main__":
         #     }
         # },
         "B": {
-            "id": "B",
+            "id": "B2",
             "name": "Test B. Execution time vs optimizations",
             "cmd": {
                 "t": (1024,),
                 "d": (faster_device,),
-                "v": (most_optimized_version,),
+                "v": (1, most_optimized_version),
                 # "test": (10, 100, 1000, '10b', '100b', '1000b', '10000b', '100000b', '1000000b')
                 "test": (1000, '1000b', '10000b', '100000b', '1000000b')
             }

@@ -8,3 +8,6 @@
 .project
 .ptp-sync
 .settings
+*~
+Debug
+Release
