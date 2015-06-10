@@ -76,29 +76,28 @@ if __name__ == "__main__":
 
     specs = {
         # "A": {
-        #     "id": "A",
+        #     "id": "A3",
         #     "name": "Test A. Execution time vs number of threads per block",
         #     "cmd": {
         #         "t": (256, 512, 1024),
         #         "d": (faster_device,),
         #         "v": (most_optimized_version,),
-        #         "test": (1000,)
+        #         "test": (1000, '100000b')
         #     }
         # },
         "B": {
-            "id": "B2",
+            "id": "B3",
             "name": "Test B. Execution time vs optimizations",
             "cmd": {
                 "t": (1024,),
                 "d": (faster_device,),
                 "v": (1, most_optimized_version),
-                # "test": (10, 100, 1000, '10b', '100b', '1000b', '10000b', '100000b', '1000000b')
-                "test": (1000, '1000b', '10000b', '100000b', '1000000b')
+                "test": (100, 1000, '100b', '1000b', '10000b', '100000b', '1000000b')
             }
         },
         # "C": {
-        #     "id": "C",
-        #     "name": "Test C. Execution time vs size of input data (number of vertices)",
+        #     "id": "C3",
+        #     "name": "Test C. Execution time vs size of input data (number of vertices and edges)",
         #     "cmd": {
         #         "t": (1024,),
         #         "d": (faster_device,),
@@ -113,7 +112,7 @@ if __name__ == "__main__":
         #         "t": (1024,),
         #         "d": (0, 1),
         #         "v": (most_optimized_version,),
-        #         "test": (1000, '1000b')
+        #         "test": (1000, '100000b')
         #     }
         # },
         # "E": {

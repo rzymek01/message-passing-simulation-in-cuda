@@ -126,7 +126,7 @@ if __name__ == "__main__":
     #     print("usage: " + sys.argv[0] + " <test_id> <version>")
     #     exit()
 
-    params = {"test_id": "B1", "t": "1024", "d": "0"}
+    params = {"test_id": "B3", "t": "1024", "d": "0"}
 
     path = OUTPUT_PATH
     generate_csv(path, params)

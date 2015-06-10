@@ -25,7 +25,7 @@ static void HandleError( cudaError_t err,
                          const char *file,
                          int line ) {
     if (err != cudaSuccess) {
-        printf( "%s in %s at line %d\n", cudaGetErrorString( err ), file, line );
+        std::cerr << cudaGetErrorString(err) << "in " << file << " at " << line << std::endl;
         exit( EXIT_FAILURE );
     }
 }
@@ -54,79 +54,60 @@ struct NodeData {
 	float v_d;
 	float v_r;
 	int   last_t;
+	int   new_last_t;
 	bool  send;
+	bool  new_send;
 };
 
 inline void printG(NodeData &data) {
 	std::cout << std::fixed << std::setprecision(2) << data.G_0 << "\t";
 }
 
-
-__global__ void recv(const int N, const int *V, NodeData *Vdata, const int Elen, const int *E,
-		int *M, const int t_c, const int t_p) {
+__global__ void recv(const int N, const int *V, NodeData *Vdata, const int Elen,
+		const int *X, const int *M, const int t_p) {
 
 	int tid = threadIdx.x + blockIdx.x * blockDim.x;
-	NodeData *data = &Vdata[tid];
-
-	if (data->send || tid >= N) {
+	if (tid >= Elen) {
 		return;
 	}
 
-	int lastTime = data->last_t, msgCount = 0;
-	int start = V[tid];
-	int end = V[tid + 1], msg;
+	int msg = M[tid];
+	NodeData *data = &Vdata[X[tid]];
 
-	// reading messages
-	for (int i = start; i < end; ++i) {
-		msg = M[i];
+	data->send = data->new_send;
 
-		if (msg <= 0 || msg <= data->last_t) {
-			continue;
-		}
-
-		if (lastTime < msg) {
-			lastTime = msg;
-		}
-		++msgCount;
+	if (msg <= 0 || msg <= data->last_t) {
+		return;
 	}
 
-	data->last_t = lastTime;
+	// determine new last time
+	atomicMax(&(data->new_last_t), msg);
 
-	// processing messages
-	data->G_0 = data->G_max - (data->G_max - data->G_0) * exp(-0.01 * msgCount * t_p);
-
+	// change G_0
+	float G_0 = data->G_0, G_max = data->G_max;
+	atomicExch(&(data->G_0), G_max - (G_max - G_0) * exp(-0.01 * t_p));
 }
 
-__global__ void send(const int N, const int *V, NodeData *Vdata, const int Elen, const int *E,
-		int *M, const int t_c, const int t_p) {
+__global__ void send(const int N, const int *V, NodeData *Vdata, const int Elen,
+		const int *E, int *M, const int t_c, const int t_p) {
 
 	int tid = threadIdx.x + blockIdx.x * blockDim.x;
-	NodeData *data = &Vdata[tid];
-
-	if (data->send || tid >= N) {
+	if (tid >= Elen) {
 		return;
 	}
 
-	int start = V[tid];
-	int end = V[tid + 1];
-	int lastTime, start2, end2, v;
+	NodeData *data = &Vdata[E[tid]];
+
+	if (data->send) {
+		return;
+	}
+
+	data->last_t = data->new_last_t;
 
 	// sending messages
 	if (data->G_0 * (data->v_h + data->v_r) >= data->v_d) {
-		data->send = true;
-		lastTime = data->last_t + t_p + t_c;
-
-		for (int i = start; i < end; ++i) {
-			v = E[i];
-			start2 = V[v];
-			end2 = V[v + 1];
-			for (int j = start2; j < end2; ++j) {
-				if (E[j] == tid) {
-					M[j] = lastTime;
-					break;
-				}
-			}
-		}
+		data->new_send = true;
+		M[tid] = data->new_last_t + t_p + t_c;
 	}
 }
 
@@ -173,7 +154,7 @@ int main(int argc, char* argv[]) {
 		std::cerr << "Device id out of range!" << std::endl;
 		exit(3);
 	}
-	if (threadsPerBlock < 16 || threadsPerBlock > prop[deviceId].maxThreadsPerBlock) {
+	if (threadsPerBlock < 2 || threadsPerBlock > prop[deviceId].maxThreadsPerBlock) {
 		std::cerr << "Number of threads per block is too small or too big!" << std::endl;
 		exit(2);
 	}
@@ -199,7 +180,7 @@ int main(int argc, char* argv[]) {
 
 	int *V, *dev_V,
 		*E, *dev_E,
-		*M, *dev_M;
+		*M, *dev_M, *dev_X;
 	NodeData *Vdata, *dev_Vdata;
 
 #ifdef _DEBUG
@@ -224,7 +205,9 @@ int main(int argc, char* argv[]) {
 		Vdata[i].v_d = v_d;
 		Vdata[i].v_r = v_r;
 		Vdata[i].last_t = 0;
+		Vdata[i].new_last_t = 0;
 		Vdata[i].send = false;
+		Vdata[i].new_send = false;
 	}
 
 	//
@@ -233,8 +216,9 @@ int main(int argc, char* argv[]) {
 	E = (int*) malloc(Elen * sizeof(int));
 	HANDLE_ERROR(cudaMalloc((void**) &dev_E, Elen * sizeof(int)));
 
-	M = (int*) calloc(Elen, sizeof(int));	// zero-initialized
+	M = (int*) malloc(Elen * sizeof(int));
 	HANDLE_ERROR(cudaMalloc((void**) &dev_M, Elen * sizeof(int)));
+	HANDLE_ERROR(cudaMalloc((void**) &dev_X, Elen * sizeof(int)));
 
 	V[0] = 0;
 	{
@@ -248,13 +232,24 @@ int main(int argc, char* argv[]) {
 			for (int j = start; j < end; ++j) {
 				std::cin >> e_i;
 				E[j] = e_i;
+				M[j] = i; // M is used here as X (X is used only in kernel)
 			}
 		}
 	}
 
+//	printArray(M, Elen);
+
+	HANDLE_ERROR(cudaMemcpy(dev_X, M, Elen * sizeof(int), cudaMemcpyHostToDevice));
+
+	// zero-filling M
+	memset((void*)M, 0, Elen * sizeof(int));
+
+//	printArray(M, Elen);
+
 	// get source vector and create M(0)
 	std::cin >> Vsrc;
 	Vdata[Vsrc].send = true;
+	Vdata[Vsrc].new_send = true;
 
 	{
 		int start = V[Vsrc];
@@ -289,7 +284,7 @@ int main(int argc, char* argv[]) {
 #endif
 
 	//
-	int blocksPerGrid = (N + threadsPerBlock-1) / threadsPerBlock;	// floor
+	const int blocksPerGrid = (Elen + threadsPerBlock-1) / threadsPerBlock;	// ceil(x/y)
 
 	// capture the start time
 	cudaEvent_t	startEvent, stopEvent;
@@ -303,21 +298,9 @@ int main(int argc, char* argv[]) {
 	HANDLE_ERROR(cudaMemcpy(dev_M, M, Elen * sizeof(int), cudaMemcpyHostToDevice));
 	HANDLE_ERROR(cudaMemcpy(dev_Vdata, Vdata, N * sizeof(NodeData), cudaMemcpyHostToDevice));
 
-	for (int t = 1; t <= t_s; t += t_c + t_p) {
-		recv<<<blocksPerGrid, threadsPerBlock>>>(N, dev_V, dev_Vdata, Elen, dev_E, dev_M, t_c, t_p);
+	for (int t = 1, i = 1; t <= t_s; t += t_c + t_p, ++i) {
+		recv<<<blocksPerGrid, threadsPerBlock>>>(N, dev_V, dev_Vdata, Elen, dev_X, dev_M, t_p);
 		send<<<blocksPerGrid, threadsPerBlock>>>(N, dev_V, dev_Vdata, Elen, dev_E, dev_M, t_c, t_p);
-
-//#ifdef _DEBUG
-//		HANDLE_ERROR(cudaMemcpy(M, dev_M, Elen * sizeof(int), cudaMemcpyDeviceToHost));
-//		HANDLE_ERROR(cudaMemcpy(Vdata, dev_Vdata, N * sizeof(NodeData), cudaMemcpyDeviceToHost));
-//
-//		std::cout << "M_" << (t / (t_c + t_p) + 1) << ":\t";
-//		printArray(M, Elen);
-//
-//		std::cout << "G_" << (t / (t_c + t_p) + 1) << ":\t";
-//		arrayMap(Vdata, N, printG);
-//		std::cout << std::endl;
-//#endif
 	}
 
 	// copy the data from the GPU to the CPU
